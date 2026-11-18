@@ -77,6 +77,11 @@ h3{font-size:.95rem;margin:0 0 8px}
   .b1 td{display:block;border:0;padding:5px 0}
   .b1 td::before{content:attr(data-label);display:block;font-size:.72rem;color:var(--muted);font-weight:600}
 }
+.spills{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.spill{border:1px solid var(--border);background:var(--card);color:var(--text);padding:8px 16px;border-radius:99px;font-size:.9rem;cursor:pointer;font-family:inherit}
+.spill[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .spill[aria-pressed="true"]{color:#0b1020}}
+.spill:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .pbtn{width:100%;padding:12px;font-size:1rem;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-family:inherit;font-weight:600}
 .pbtn[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .pbtn[aria-pressed="true"]{color:#0b1020}}
@@ -114,18 +119,29 @@ th{color:var(--muted);font-weight:600;white-space:nowrap}
     <button class="vtab" role="tab" data-v="guide" aria-selected="false">Guidelines</button>
   </div>
   <div id="existView" class="hidden">
-    <div class="card"><div class="row" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:end">
+    <div class="card"><div class="row" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));align-items:end">
+      <div><label for="exBranch">Branch</label><select id="exBranch"><option value="">Select branch…</option></select></div>
+      <div><label for="exCls">Class</label><select id="exCls"><option value="">Select class…</option></select></div>
       <div><label for="exRound">Round</label>
-        <select id="exRound"><option value="">Select round…</option><option value="r1">Round 1 – Last day 31 May 2027</option><option value="r2">Round 2 – 1 Jun 2027 to 14 Jun 2027</option></select></div>
+        <select id="exRound"><option value="">Select round…</option><option value="r1">Round 1</option><option value="r2">Round 2</option></select></div>
       <div><label>Monthly payment</label>
         <button type="button" class="pbtn" id="exFirst" aria-pressed="false">First-Month Scheme</button></div>
     </div></div>
+    <div class="card hidden" id="exHead">
+      <div class="branch" id="exBn"></div>
+      <span class="badge" id="exCat"></span><span class="badge" id="exCl"></span>
+    </div>
+    <div class="card hidden" id="exStats">
+      <div class="stats" style="margin-top:0;grid-template-columns:1fr">
+        <div class="stat"><div class="k">Annual tuition fee</div><div class="v" id="exFee"></div><div class="n">AY 2027-28</div></div>
+      </div>
+    </div>
     <div class="card" id="exBody"></div>
   </div>
   <div id="specView" class="hidden"><div class="card" id="p-special"></div></div>
   <div id="guideView" class="hidden"></div>
   <div id="srfView" class="hidden">
-    <div class="card"><div class="row" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+    <div class="card"><div class="row" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
       <div><label for="otBranch">Branch</label><select id="otBranch"><option value="">Select branch…</option></select></div>
       <div><label for="otCls">Class</label><select id="otCls"><option value="">Select class…</option></select></div>
       <div><label for="srfRound">Admission round</label><select id="srfRound"><option value="">All</option></select></div>
@@ -159,8 +175,8 @@ th{color:var(--muted);font-weight:600;white-space:nowrap}
     </div>
 
     <div class="card">
-      <h2>Installment schedule</h2>
-      <div class="sched" id="sched"></div>
+      <h2>Installment Schedule : 10 Months Equally Installments</h2>
+      <div id="sched"></div>
     </div>
 
   </div>
@@ -232,6 +248,8 @@ Object.keys(BRANCHES).forEach(b => $("branch").add(new Option(b, b)));
 CLASSES.forEach(c => $("cls").add(new Option(clsLabel(c), c)));
 Object.keys(BRANCHES).forEach(b => $("otBranch").add(new Option(b, b)));
 CLASSES.forEach(c => $("otCls").add(new Option(clsLabel(c), c)));
+Object.keys(BRANCHES).forEach(b => $("exBranch").add(new Option(b, b)));
+CLASSES.forEach(c => $("exCls").add(new Option(clsLabel(c), c)));
 ROUNDS.forEach(r => $("round").add(new Option(`${r.name} (${r.fromTxt} – ${r.toTxt})`, r.key)));
 function syncRounds(idx){
   if(group(idx) !== "pre" && $("round").value === "") $("round").value = "r1";
@@ -310,19 +328,42 @@ function renderB1G5(sp){
   <div class="note" style="margin-top:14px;margin-bottom:0;text-align:center;font-weight:600">Parents paying OTP &amp; also bringing new admission, have to choose between OTP benefits or B1G5000 benefits.</div>`;
 }
 
-function renderSpecial(fee, sp){
-  const has = fee != null;
+let specSel = "", specFee = null;
+const SPEC_DOC = {
+  "Heavenly Hearts": "Father’s death certificate",
+  "MS Staff": "Confirmation from HR",
+  "Ulema": "Sanad certificate from DRT",
+  "Hafiz": "Sanad certificate from DRT",
+  "3rd Child Onwards": "Applicable only if the elder siblings are actively enrolled in the school; benefit restricted to the youngest children only",
+  "Thalassemia": "Medical certificate"
+};
+function renderSpecial(fee){
+  if(fee !== undefined) specFee = fee;
+  const has = specFee != null;
+  const pills = SPECIAL.map(x => [x.name, x.name]).map(([label,val]) =>
+    `<button type="button" class="spill" data-s="${esc(val)}" aria-pressed="${val === specSel}">${esc(label)}</button>`).join("");
+  let body;
+  if(!specSel){
+    body = `<p class="muted" style="margin:0">Select a special category above to see its details.</p>`;
+  } else {
+    const x = SPECIAL.find(y => y.name === specSel), net = has ? specFee*(100-x.pct)/100 : 0;
+    body = `<h3>${x.name}</h3>
+      <div class="kv"><span>Seat Reservation Fee (SRF)</span><b>${x.srf}</b></div>
+      <div class="kv"><span>Security deposit</span><b>${x.sd}</b></div>
+      <div class="kv"><span>Scholarship on tuition fee</span><b>${x.pct}%</b></div>
+      ${has ? `<div class="kv"><span>Tuition after concession</span><b>${inr(net)}</b></div><div class="kv"><span>Monthly installment (10)</span><b>${x.pct===100?"–":inr(net/10)}</b></div>` : ""}
+      <div class="kv"><span>Free uniform &amp; books</span><b>${x.free[0] ? "Regular uniform, white uniform &amp; books" : "None"}</b></div>
+      <div class="kv"><span>Document / condition</span><b style="text-align:right;max-width:60%">${SPEC_DOC[x.name]}</b></div>`;
+  }
   $("p-special").innerHTML = `<h2>Special categories</h2>
-  <div class="scroll"><table><thead><tr><th>Category</th><th>SRF</th><th>Security deposit</th><th>Scholarship</th>${has ? "<th>Tuition after concession</th><th>Monthly (10)</th>" : ""}<th>Free uniform &amp; books</th></tr></thead><tbody>
-  ${SPECIAL.map(x => {
-    const net = has ? fee*(100-x.pct)/100 : 0;
-    const perk = x.free[0] ? "Regular uniform, white uniform &amp; books" : "None";
-    const hl = sp && sp.name === x.name ? ' style="background:var(--soft)"' : "";
-    return `<tr${hl}><td><b>${x.name}</b></td><td>${x.srf}</td><td>${x.sd}</td><td>${x.pct===100?"100%":x.pct+"%"}</td>${has ? `<td>${inr(net)}</td><td>${x.pct===100?"–":inr(net/10)}</td>` : ""}<td>${perk}</td></tr>`;
-  }).join("")}</tbody></table></div>
-  <p class="muted" style="margin-top:10px">${has ? `Tuition after concession and monthly amount are calculated on the ${inr(fee)} tuition fee of the class selected in New Admissions.` : "Select a branch and class in New Admissions to also see tuition after concession and the monthly amount."}</p>`;
+    <div class="spills">${pills}</div>${body}
+    <p class="muted" style="margin-top:12px">${has ? `Tuition after concession is calculated on the ${inr(specFee)} tuition fee of the class selected in New Admissions.` : "Select a branch and class in New Admissions to also see tuition after concession and the monthly amount."}</p>`;
 }
-renderSpecial(null, null);
+$("p-special").addEventListener("click", e => {
+  const t = e.target.closest(".spill"); if(!t) return;
+  specSel = t.dataset.s; renderSpecial();
+});
+renderSpecial(null);
 
 function render(){
   const b = $("branch").value, c = $("cls").value;
@@ -333,9 +374,9 @@ function render(){
   $("rBranch").textContent = b;
   $("rCat").textContent = "Category " + cat;
   $("rClass").textContent = clsLabel(c);
-  $("sched").innerHTML = DUE.map((d,i)=>`<div class="inst"><span>Installment ${i+1}</span><b>${inr(net/10)}</b><span>${d}</span></div>`).join("");
+  $("sched").innerHTML = `<div class="inst" style="max-width:360px;padding:14px 16px"><span>Monthly installment × 10 months</span><b style="font-size:1.8rem;margin:2px 0">${inr(net/10)}</b><span>Due on the 8th of each month · ${DUE[0]} to ${DUE[DUE.length-1]}</span></div>`;
   syncRounds(idx); renderNew(cat, idx, $("round").value, fee, sp); renderFirst(sp); renderB1G5(sp); renderSpecial(fee, sp);
-  $("result").classList.remove("hidden");
+  $("result").classList.toggle("hidden", $("finderCard").classList.contains("hidden"));
 }
 $("branch").addEventListener("change", render);
 $("cls").addEventListener("change", render);
@@ -358,20 +399,29 @@ function buildSrf(){
     const tb = keys.reduce((a,k) => a + base[k], 0), tc = keys.reduce((a,k) => a + cur[k], 0);
     const perks = Object.entries(r.perks).filter(([k,v]) => v).map(([k]) => perkLabel(k));
     h += `<div class="bkwrap"><div class="bktitle">${r.name} : ${fmtD(r.from)} to ${fmtD(r.to)}</div>
-      <div class="bkgrid"><div class="scroll"><table class="bk"><thead><tr><th>Particular</th><th>Total</th><th>Fees</th><th>Saving</th></tr></thead><tbody>
+      <div class="bkgrid"><div><div class="scroll"><table class="bk"><thead><tr><th>Particular</th><th>Total</th><th>Fees</th><th>Saving</th></tr></thead><tbody>
       ${keys.map(k => `<tr><td>${k}</td><td>${inr(base[k])}</td><td>${inr(cur[k])}</td><td>${inr(base[k]-cur[k])}</td></tr>`).join("")}
-      <tr class="tot"><td>Total</td><td>${inr(tb)}</td><td>${inr(tc)}</td><td>${inr(tb-tc)}</td></tr>
-      <tr class="tot"><td>Total Fees (${clsLabel(c)} – annual tuition)</td><td colspan="3">${inr(classFee)}</td></tr></tbody></table></div>
+      <tr class="tot"><td>Total</td><td>${inr(tb)}</td><td>${inr(tc)}</td><td>${inr(tb-tc)}</td></tr></tbody></table></div>
+      <div class="stats" style="grid-template-columns:1fr;margin-top:12px"><div class="stat"><div class="k">Annual tuition fee</div><div class="v">${inr(classFee)}</div><div class="n">AY 2027-28</div></div></div></div>
       <div class="bkben"><div class="bkbh">Benefits</div>${perks.length ? perks.map(p => `<div>${p}</div>`).join("") : '<div class="muted">No free items</div>'}</div></div></div>`;
   });
   h += `<p class="muted">Total = standard Round 3 (Final Admission Phase) rate for ${GROUP_LABEL[g]}; Fees = amount payable in that round; Saving = Total − Fees.</p></div>`;
   $("srfBody").innerHTML = h;
 }
 ROUNDS.forEach(r => $("srfRound").add(new Option(`${r.name} (${r.fromTxt} – ${r.toTxt})`, r.key)));
-$("branch").addEventListener("change", () => { $("otBranch").value = $("branch").value; buildSrf(); });
-$("cls").addEventListener("change", () => { $("otCls").value = $("cls").value; buildSrf(); });
-$("otBranch").addEventListener("change", () => { $("branch").value = $("otBranch").value; render(); buildSrf(); });
-$("otCls").addEventListener("change", () => { $("cls").value = $("otCls").value; render(); buildSrf(); });
+const BC = [["branch","cls"],["otBranch","otCls"],["exBranch","exCls"]];
+function renderExStats(){
+  const b = $("exBranch").value, c = $("exCls").value;
+  if(!b || !c){ $("exHead").classList.add("hidden"); $("exStats").classList.add("hidden"); return; }
+  const cat = BRANCHES[b], fee = FEES[cat][CLASSES.indexOf(c)];
+  $("exBn").textContent = b; $("exCat").textContent = "Category " + cat; $("exCl").textContent = clsLabel(c);
+  $("exFee").textContent = inr(fee);
+  $("exHead").classList.remove("hidden"); $("exStats").classList.remove("hidden");
+}
+BC.forEach(([bi,ci]) => [bi,ci].forEach(id => $(id).addEventListener("change", () => {
+  BC.forEach(([b2,c2]) => { $(b2).value = $(bi).value; $(c2).value = $(ci).value; });
+  render(); buildSrf(); renderExStats();
+})));
 $("srfRound").addEventListener("change", buildSrf);
 buildSrf();
 function buildGuide(){
