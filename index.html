@@ -138,7 +138,13 @@ th{color:var(--muted);font-weight:600;white-space:nowrap}
     </div>
     <div class="card" id="exBody"></div>
   </div>
-  <div id="specView" class="hidden"><div class="card" id="p-special"></div></div>
+  <div id="specView" class="hidden">
+    <div class="card"><div class="row" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <div><label for="spBranch">Branch</label><select id="spBranch"><option value="">Select branch…</option></select></div>
+      <div><label for="spCls">Class</label><select id="spCls"><option value="">Select class…</option></select></div>
+    </div></div>
+    <div class="card" id="p-special"></div>
+  </div>
   <div id="guideView" class="hidden"></div>
   <div id="srfView" class="hidden">
     <div class="card"><div class="row" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
@@ -174,7 +180,7 @@ th{color:var(--muted);font-weight:600;white-space:nowrap}
       <div id="p-b1g5" class="hidden"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="schedCard">
       <h2>Installment Schedule : 10 Months Equally Installments</h2>
       <div id="sched"></div>
     </div>
@@ -250,6 +256,8 @@ Object.keys(BRANCHES).forEach(b => $("otBranch").add(new Option(b, b)));
 CLASSES.forEach(c => $("otCls").add(new Option(clsLabel(c), c)));
 Object.keys(BRANCHES).forEach(b => $("exBranch").add(new Option(b, b)));
 CLASSES.forEach(c => $("exCls").add(new Option(clsLabel(c), c)));
+Object.keys(BRANCHES).forEach(b => $("spBranch").add(new Option(b, b)));
+CLASSES.forEach(c => $("spCls").add(new Option(clsLabel(c), c)));
 ROUNDS.forEach(r => $("round").add(new Option(`${r.name} (${r.fromTxt} – ${r.toTxt})`, r.key)));
 function syncRounds(idx){
   if(group(idx) !== "pre" && $("round").value === "") $("round").value = "r1";
@@ -367,7 +375,7 @@ renderSpecial(null);
 
 function render(){
   const b = $("branch").value, c = $("cls").value;
-  if(!b || !c){ $("result").classList.add("hidden"); return; }
+  if(!b || !c){ $("result").classList.add("hidden"); renderSpecial(null); return; }
   const cat = BRANCHES[b], idx = CLASSES.indexOf(c), fee = FEES[cat][idx];
   const sp = null;
   const net = sp ? fee * (100 - sp.pct) / 100 : fee;
@@ -409,14 +417,15 @@ function buildSrf(){
   $("srfBody").innerHTML = h;
 }
 ROUNDS.forEach(r => $("srfRound").add(new Option(`${r.name} (${r.fromTxt} – ${r.toTxt})`, r.key)));
-const BC = [["branch","cls"],["otBranch","otCls"],["exBranch","exCls"]];
+const BC = [["branch","cls"],["otBranch","otCls"],["exBranch","exCls"],["spBranch","spCls"]];
 function renderExStats(){
   const b = $("exBranch").value, c = $("exCls").value;
   if(!b || !c){ $("exHead").classList.add("hidden"); $("exStats").classList.add("hidden"); return; }
   const cat = BRANCHES[b], fee = FEES[cat][CLASSES.indexOf(c)];
   $("exBn").textContent = b; $("exCat").textContent = "Category " + cat; $("exCl").textContent = clsLabel(c);
   $("exFee").textContent = inr(fee);
-  $("exHead").classList.remove("hidden"); $("exStats").classList.remove("hidden");
+  $("exHead").classList.remove("hidden");
+  $("exStats").classList.toggle("hidden", $("exFirst").getAttribute("aria-pressed") === "true");
 }
 BC.forEach(([bi,ci]) => [bi,ci].forEach(id => $(id).addEventListener("change", () => {
   BC.forEach(([b2,c2]) => { $(b2).value = $(bi).value; $(c2).value = $(ci).value; });
@@ -459,6 +468,7 @@ const EXIST = {
   fm: {title:"First-Month Scheme (Monthly Payment)", sub:"On or before 08 Jun 2027", rows:[["Text Book Free",0],["Note Book Free",0],["Activity Material Free",0],["Regular Uniform at 50%",1],["Regular Uniform Accessories at 50%",1],["White Uniform Free",0],["White Uniform Accessories Free",0]]}
 };
 function renderExist(){
+  renderExStats();
   const fm = $("exFirst").getAttribute("aria-pressed") === "true";
   const key = fm ? "fm" : $("exRound").value;
   if(!key){ $("exBody").innerHTML = '<p class="muted" style="margin:0">Select a round, or tap “First-Month Scheme”, to see the benefits for existing students.</p>'; return; }
@@ -491,6 +501,7 @@ $("tabs").addEventListener("click", e => {
   const t = e.target.closest(".tab"); if(!t) return;
   document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x===t));
   ["new","first","b1g5"].forEach(k => $("p-"+k).classList.toggle("hidden", k !== t.dataset.t));
+  $("schedCard").classList.toggle("hidden", t.dataset.t !== "new");
 });
 </script>
 </body>
